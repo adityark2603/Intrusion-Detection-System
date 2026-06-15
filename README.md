@@ -109,13 +109,6 @@ Open your browser and go to: **http://127.0.0.1:5000**
 
 Click **"Initialize IDS"** in the dashboard to start the detection loop.
 
-### Step 3 (optional) — Watch alerts in the terminal
-
-Open **Terminal 3**:
-
-```bash
-tail -f ~/NeuralShield-IDS/week3/logs/alerts.log
-```
 
 ## Simulating Attacks (for testing)
 
