@@ -2,8 +2,6 @@
 
 A real-time network intrusion detection system that uses a **Random Forest** classifier to detect malicious traffic from live Zeek logs. Includes a live web dashboard for monitoring.
 
-![Dashboard](week3/ss/w3-terminal.png)
-
 ---
 
 ## How It Works
@@ -20,48 +18,26 @@ The model was trained on the **CIC-IDS2017** dataset (DDoS, PortScan, Botnet, Br
 ## Folder Structure
 
 ```
-IDS/
-├── week3/                      ← Main project (live detection + dashboard)
-│   ├── app.py                  ← Flask web dashboard (start here)
-│   ├── live_detect.py          ← Core detection loop (reads Zeek conn.log)
-│   ├── train_model.py          ← Model training script
-│   ├── conn.log                ← Live Zeek connection log (generated at runtime)
-│   ├── flows_live.tsv          ← Sample flows for offline testing
-│   ├── label_map.json          ← { 0: BENIGN, 1: ATTACK }
-│   ├── features/
-│   │   └── features.json       ← Feature list: duration, orig_bytes, resp_bytes, proto
-│   ├── model/
-│   │   └── ids_model.joblib    ← Trained Random Forest model
-│   ├── logs/
-│   │   ├── alerts.log          ← Alerts only (generated at runtime)
-│   │   └── full.log            ← All flow decisions (generated at runtime)
-│   ├── static/
-│   │   ├── index.html          ← Dashboard frontend
-│   │   └── style.css           ← Dashboard styles
-│   └── ss/
-│       └── w3-terminal.png     ← Screenshot
-│
-├── week2/                      ← Earlier iteration (offline flow analysis)
-│   ├── data/
-│   │   ├── conn.log
-│   │   ├── flows_raw.tsv
-│   │   ├── flows_ready.csv
-│   │   └── preprocess.py
-│   ├── features/
-│   │   └── features.json
-│   ├── model/
-│   │   └── ids_model.joblib
-│   └── test_model.py
-│
-└── week1/                      ← Initial Zeek log exploration
-    ├── conn.log
-    ├── conn_selected.csv
-    ├── dns.log
-    ├── http.log
-    └── ssl.log
-```
+Intrusion-Detection-System/
+└── live_detection/ (live detection + dashboard)
+    ├── app.py                  ← Flask web dashboard (start here)
+    ├── live_detect.py          ← Core detection loop (reads Zeek conn.log)
+    ├── train_model.py          ← Model training script
+    ├── conn.log                ← Live Zeek connection log (generated at runtime)
+    ├── flows_live.tsv          ← Sample flows for offline testing
+    ├── label_map.json          ← { 0: BENIGN, 1: ATTACK }
+    ├── features/
+    │   └── features.json       ← Feature list: duration, orig_bytes, resp_bytes, proto
+    ├── model/
+    │   └── ids_model.joblib    ← Trained Random Forest model
+    ├── logs/
+    │   ├── alerts.log          ← Alerts only (generated at runtime)
+    │   └── full.log            ← All flow decisions (generated at runtime)
+    └── static/
+        ├── index.html          ← Dashboard frontend
+        └── style.css           ← Dashboard styles
 
-> **Note:** `test_capture.pcap` files are excluded from this repo (too large). See [Running Without a Live Interface](#running-without-a-live-interface) to use them.
+```
 
 ---
 
@@ -86,8 +62,8 @@ pip install flask flask-cors pandas scikit-learn joblib numpy
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/NeuralShield-IDS.git
-cd NeuralShield-IDS
+ git clone https://github.com/adityark2603/Intrusion-Detection-System.git
+cd Intrusion-Detection-System
 ```
 
 ### 2. Install dependencies
@@ -96,7 +72,7 @@ cd NeuralShield-IDS
 pip install flask flask-cors pandas scikit-learn joblib numpy
 ```
 
-### 3. Train the model (skip if `model/ids_model.joblib` already exists)
+### 3. Train the model (skip if `model/ids_model.joblib` exists and no changes have been made to model)
 
 ```bash
 cd week3
@@ -114,7 +90,7 @@ This downloads the CIC-IDS2017 dataset and trains a Random Forest. Takes about 5
 Open **Terminal 1**. Replace `ens33` with your actual interface (find it with `ip a`):
 
 ```bash
-cd ~/NeuralShield-IDS/week3
+cd ~/Intrusion-Detection-System/live_detection
 sudo zeek -C -i ens33
 ```
 
@@ -125,7 +101,7 @@ This creates and continuously updates `conn.log` in the current directory.
 Open **Terminal 2**:
 
 ```bash
-cd ~/NeuralShield-IDS/week3
+cd ~/Intrusion-Detection-System/live_detection
 python3 app.py
 ```
 
@@ -140,59 +116,6 @@ Open **Terminal 3**:
 ```bash
 tail -f ~/NeuralShield-IDS/week3/logs/alerts.log
 ```
-
----
-
-## Running Without a Live Interface
-
-If you don't have Zeek running, you can test the model directly by injecting flows into `flows_live.tsv`:
-
-```bash
-cd week3
-
-# Simulate a DDoS flow
-echo -e "101.5\t43804\t9784\ttcp" >> flows_live.tsv
-
-# Simulate a port scan (20 tiny flows)
-for i in $(seq 1 20); do
-  echo -e "0.001\t44\t0\ttcp" >> flows_live.tsv
-done
-```
-
-Or score flows instantly with no Zeek needed:
-
-```bash
-python3 - <<'EOF'
-import pandas as pd, joblib
-
-model = joblib.load("model/ids_model.joblib")
-
-tests = [
-    ("Port scan",    0.001,  44,     0,    "tcp"),
-    ("DDoS flood",   101.5,  43804,  9784, "tcp"),
-    ("Exfiltration", 95.3,   500000, 200,  "tcp"),
-    ("Normal web",   0.577,  87,     189,  "tcp"),
-    ("Normal DNS",   0.034,  94,     622,  "udp"),
-]
-
-rows = [{"duration": d, "orig_bytes": o, "resp_bytes": r, "proto": p}
-        for _, d, o, r, p in tests]
-df = pd.DataFrame(rows)
-df["proto"] = df["proto"].astype("category").cat.codes
-for c in ["duration", "orig_bytes", "resp_bytes"]:
-    df[c] = pd.to_numeric(df[c])
-
-probs = model.predict_proba(df[model.feature_names_in_])
-
-print(f"\n{'Label':<20} {'P(attack)':<12} {'Result'}")
-print("-" * 45)
-for i, (name, *_) in enumerate(tests):
-    p = probs[i][1]
-    print(f"{name:<20} {p:<12.3f} {'ATTACK' if p > 0.7 else 'BENIGN'}")
-EOF
-```
-
----
 
 ## Simulating Attacks (for testing)
 
