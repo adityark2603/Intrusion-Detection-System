@@ -1,0 +1,11 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	x509
+#open	2026-06-15-12-40-21
+#fields	ts	fingerprint	certificate.version	certificate.serial	certificate.subject	certificate.issuer	certificate.not_valid_before	certificate.not_valid_after	certificate.key_alg	certificate.sig_alg	certificate.key_type	certificate.key_length	certificate.exponent	certificate.curve	san.dns	san.uri	san.email	san.ip	basic_constraints.ca	basic_constraints.path_len	host_cert	client_cert
+#types	time	string	count	string	string	string	time	time	string	string	string	count	string	string	vector[string]	vector[string]	vector[string]	vector[addr]	bool	count	bool	bool
+1781507421.433293	a21b29cc0265ae6ac2df7bfb6f64befa602e3657a0664ccb8d799991b4562d27	3	0630666D3467670149F31CDD91A2866AECA4	CN=firefox.settings.services.mozilla.com	CN=YR1,O=Let's Encrypt,C=US	1781184832.000000	1788960831.000000	rsaEncryption	sha256WithRSAEncryption	rsa	2048	65537	-	firefox-settings.mozilla-backup.org,firefox.settings.services.mozilla.com	-	-	-	F	-	T	F
+1781507421.433293	13949634d99cd6fd6aa80bc034fefacceb1969feef986586713ecdbb05758d3f	3	A20253F15F2691C05DC1CE13B9BCCA4E	CN=YR1,O=Let's Encrypt,C=US	CN=Root YR,O=ISRG,C=US	1756857600.000000	1851551999.000000	rsaEncryption	sha256WithRSAEncryption	rsa	2048	65537	-	-	-	-	-	T	0	F	F
+1781507421.433293	072639d0b140d5bffae16ad9c3f6cc6086040621f51ee61a6d46a8915c07cf76	3	F24B6D17F9D9AD7CB1C9FEA78782699F	CN=Root YR,O=ISRG,C=US	CN=ISRG Root X1,O=Internet Security Research Group,C=US	1778630400.000000	1977782399.000000	rsaEncryption	sha256WithRSAEncryption	rsa	4096	65537	-	-	-	-	-	T	-	F	F

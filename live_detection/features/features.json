@@ -1,0 +1,8 @@
+{
+  "features": [
+    "duration",
+    "orig_bytes",
+    "resp_bytes",
+    "proto"
+  ]
+}

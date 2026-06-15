@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IDS — Neural Threat Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="static/style.css"/>
+</head>
+<body>
+
+<div class="alert-flash" id="alertFlash"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4l6 2.67V11c0 3.37-2.37 6.5-6 7.5-3.63-1-6-4.13-6-7.5V7.67L12 5z"/></svg>
+    </div>
+    <div class="logo-text">
+      <h1>NeuralShield</h1>
+      <p>ML-Based Intrusion Detection System</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-badge">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText" style="color:var(--text2)">OFFLINE</span>
+    </div>
+    <div class="time-display" id="clockDisplay">--:--:--</div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- Control -->
+    <div class="control-panel">
+      <div class="section-label">System Control</div>
+      <button class="start-btn idle" id="mainBtn" onclick="toggleIDS()">
+        ▶ &nbsp; Initialize IDS
+      </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <div class="stat-label">Total Flows</div>
+        <div class="stat-value" id="totalFlows">0</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Alerts</div>
+        <div class="stat-value" id="alertCount">0</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Benign</div>
+        <div class="stat-value" id="benignCount">0</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Threat %</div>
+        <div class="stat-value" id="threatPct">0%</div>
+      </div>
+    </div>
+
+    <!-- Gauge -->
+    <div class="gauge-section">
+      <div class="section-label">Last Flow Probability</div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 180 110">
+          <path class="gauge-track"
+            d="M 20 100 A 70 70 0 0 1 160 100"
+            stroke-dasharray="220" stroke-dashoffset="0"/>
+          <path class="gauge-fill" id="gaugeFill"
+            d="M 20 100 A 70 70 0 0 1 160 100"
+            stroke="var(--accent2)"
+            stroke-dasharray="220" stroke-dashoffset="220"/>
+          <text x="90" y="80" class="gauge-center">
+            <tspan class="gauge-prob" id="gaugeProb" x="90" dy="0">0.000</tspan>
+            <tspan class="gauge-sublabel" x="90" dy="18">ATTACK PROB</tspan>
+          </text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Model Info -->
+    <div class="model-info">
+      <div class="section-label">Model Configuration</div>
+      <div class="model-row"><span class="model-key">Algorithm</span><span class="model-val">Random Forest</span></div>
+      <div class="model-row"><span class="model-key">Dataset</span><span class="model-val">CIC-IDS</span></div>
+      <div class="model-row"><span class="model-key">Threshold</span><span class="model-val">0.700</span></div>
+      <div class="model-row"><span class="model-key">Features</span><span class="model-val">duration, bytes, proto</span></div>
+      <div class="model-row"><span class="model-key">Interval</span><span class="model-val">30s</span></div>
+      <div class="model-row"><span class="model-key">Status</span><span class="model-val green" id="modelStatus">LOADED</span></div>
+    </div>
+
+    <!-- Recent Alerts in sidebar -->
+    <div class="alert-feed">
+      <div class="section-label">Recent Events</div>
+      <div id="alertFeed">
+        <div style="color:var(--text3); font-family:'Share Tech Mono',monospace; font-size:11px; text-align:center; padding:20px 0;">
+          No events yet
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- RIGHT PANEL TOP: Chart -->
+  <div class="top-content">
+    <div class="section-label">Traffic Analysis — Alerts vs Benign Over Time</div>
+    <div class="chart-container">
+      <canvas id="trafficChart"></canvas>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL BOTTOM: Terminal -->
+  <div class="terminal-area">
+    <div class="terminal-header">
+      <div class="terminal-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="terminal-title">LIVE OUTPUT STREAM — live_detect.py</div>
+      <div class="terminal-actions">
+        <button class="term-btn" onclick="clearTerminal()">CLEAR</button>
+        <button class="term-btn" onclick="scrollToBottom()">↓ BOTTOM</button>
+      </div>
+    </div>
+    <div class="terminal" id="terminal">
+      <div class="empty-state">
+        <div class="big">SYSTEM STANDBY</div>
+        <div>Click Initialize IDS to begin monitoring</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──
+  let isRunning = false;
+  let eventSource = null;
+  let autoScroll = true;
+  let chart = null;
+  let chartLabels = [];
+  let chartAlerts = [];
+  let chartBenign = [];
+  let lastAlertCount = 0;
+
+  // ── Clock ──
+  function updateClock() {
+    document.getElementById('clockDisplay').textContent =
+      new Date().toLocaleTimeString('en-US', {hour12: false});
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── Chart setup ──
+  function initChart() {
+    const ctx = document.getElementById('trafficChart').getContext('2d');
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartLabels,
+        datasets: [
+          {
+            label: 'Alerts',
+            data: chartAlerts,
+            borderColor: '#ff3a5c',
+            backgroundColor: 'rgba(255,58,92,0.1)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#ff3a5c',
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: 'Benign',
+            data: chartBenign,
+            borderColor: '#00ff9d',
+            backgroundColor: 'rgba(0,255,157,0.07)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#00ff9d',
+            tension: 0.4,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#5a8fa8',
+              font: { family: "'Share Tech Mono', monospace", size: 11 },
+              boxWidth: 12
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#2a5f78', font: { family: "'Share Tech Mono', monospace", size: 10 }, maxTicksLimit: 8 },
+            grid: { color: 'rgba(14,58,82,0.4)' }
+          },
+          y: {
+            ticks: { color: '#2a5f78', font: { family: "'Share Tech Mono', monospace", size: 10 } },
+            grid: { color: 'rgba(14,58,82,0.4)' },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+
+  function updateChart(h) {
+    if (!chart || !h || h.length === 0) return;
+    chartLabels = h.map(p => p.time);
+    chartAlerts = h.map(p => p.alerts);
+    chartBenign = h.map(p => p.benign);
+    chart.data.labels = chartLabels;
+    chart.data.datasets[0].data = chartAlerts;
+    chart.data.datasets[1].data = chartBenign;
+    chart.update('none');
+  }
+
+  initChart();
+
+  // ── Gauge update ──
+  function updateGauge(prob) {
+    const fill = document.getElementById('gaugeFill');
+    const label = document.getElementById('gaugeProb');
+    const offset = 220 - (prob * 220);
+    fill.style.strokeDashoffset = offset;
+
+    let color;
+    if (prob > 0.7) { color = '#ff3a5c'; }
+    else if (prob > 0.4) { color = '#ffb300'; }
+    else { color = '#00ff9d'; }
+
+    fill.style.stroke = color;
+    label.style.fill = color;
+    label.textContent = prob.toFixed(3);
+  }
+
+  // ── Stats update ──
+  function updateStats(stats) {
+    document.getElementById('totalFlows').textContent = stats.total_flows || 0;
+    document.getElementById('alertCount').textContent = stats.alerts || 0;
+    document.getElementById('benignCount').textContent = stats.benign || 0;
+    const total = stats.total_flows || 1;
+    const pct = Math.round(((stats.alerts || 0) / total) * 100);
+    document.getElementById('threatPct').textContent = pct + '%';
+
+    if (stats.last_prob !== undefined) updateGauge(stats.last_prob);
+    if (stats.history) updateChart(stats.history);
+
+    // Flash on new alert
+    if (stats.alerts > lastAlertCount) {
+      const flash = document.getElementById('alertFlash');
+      flash.classList.remove('active');
+      void flash.offsetWidth;
+      flash.classList.add('active');
+      document.getElementById('statusDot').classList.add('alert');
+      setTimeout(() => document.getElementById('statusDot').classList.remove('alert'), 1000);
+    }
+    lastAlertCount = stats.alerts || 0;
+  }
+
+  // ── Terminal ──
+  function appendToTerminal(parsed) {
+    const term = document.getElementById('terminal');
+
+    // Remove empty state
+    const empty = term.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    if (parsed.type === 'ping') return;
+
+    const line = document.createElement('div');
+    line.className = `t-line ${parsed.type}`;
+
+    const t = document.createElement('span');
+    t.className = 't-time';
+    t.textContent = parsed.time || '';
+
+    const m = document.createElement('span');
+    m.className = 't-msg';
+    m.textContent = parsed.msg || '';
+
+    line.appendChild(t);
+    line.appendChild(m);
+    term.appendChild(line);
+
+    if (autoScroll) {
+      term.scrollTop = term.scrollHeight;
+    }
+
+    // Keep DOM trim
+    while (term.children.length > 300) {
+      term.removeChild(term.firstChild);
+    }
+  }
+
+  function appendToFeed(parsed) {
+    if (parsed.type !== 'alert' && parsed.type !== 'ok') return;
+    const feed = document.getElementById('alertFeed');
+    const noEvents = feed.querySelector('div');
+    if (noEvents && noEvents.textContent.includes('No events')) noEvents.remove();
+
+    const item = document.createElement('div');
+    item.className = `alert-item ${parsed.type}`;
+    item.innerHTML = `<div class="alert-time">${parsed.time}</div><div>${parsed.msg}</div>`;
+    feed.insertBefore(item, feed.firstChild);
+
+    while (feed.children.length > 30) feed.removeChild(feed.lastChild);
+  }
+
+  function clearTerminal() {
+    document.getElementById('terminal').innerHTML = '';
+  }
+
+  function scrollToBottom() {
+    const term = document.getElementById('terminal');
+    term.scrollTop = term.scrollHeight;
+  }
+
+  // ── SSE Stream ──
+  function startStream() {
+    if (eventSource) { eventSource.close(); }
+    eventSource = new EventSource('/api/stream');
+    eventSource.onmessage = (e) => {
+      try {
+        const parsed = JSON.parse(e.data);
+        appendToTerminal(parsed);
+        appendToFeed(parsed);
+      } catch {}
+    };
+    eventSource.onerror = () => {};
+  }
+
+  // ── Poll status ──
+  function pollStatus() {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(data => {
+        isRunning = data.running;
+        updateButtonState();
+        updateStats(data.stats);
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        if (isRunning) {
+          dot.className = 'status-dot running';
+          txt.textContent = 'MONITORING';
+          txt.style.color = 'var(--accent2)';
+        } else {
+          dot.className = 'status-dot';
+          txt.textContent = 'OFFLINE';
+          txt.style.color = 'var(--text2)';
+        }
+      })
+      .catch(() => {});
+  }
+
+  setInterval(pollStatus, 3000);
+
+  // ── Toggle IDS ──
+  function toggleIDS() {
+    const btn = document.getElementById('mainBtn');
+    if (!isRunning) {
+      fetch('/api/start', { method: 'POST' })
+        .then(r => r.json())
+        .then(() => {
+          isRunning = true;
+          updateButtonState();
+          startStream();
+          appendToTerminal({
+            type: 'info',
+            time: new Date().toLocaleTimeString('en-US', {hour12: false}),
+            msg: '[INFO] Launching IDS pipeline — connecting to Zeek...'
+          });
+        })
+        .catch(() => alert('Could not connect to backend. Is app.py running?'));
+    } else {
+      fetch('/api/stop', { method: 'POST' })
+        .then(r => r.json())
+        .then(() => {
+          isRunning = false;
+          updateButtonState();
+          if (eventSource) { eventSource.close(); eventSource = null; }
+        });
+    }
+  }
+
+  function updateButtonState() {
+    const btn = document.getElementById('mainBtn');
+    if (isRunning) {
+      btn.className = 'start-btn running-btn';
+      btn.innerHTML = '■ &nbsp; Stop IDS';
+    } else {
+      btn.className = 'start-btn idle';
+      btn.innerHTML = '▶ &nbsp; Initialize IDS';
+    }
+  }
+
+  // Initial status check
+  pollStatus();
+
+  // Load existing logs on page load
+  fetch('/api/logs')
+    .then(r => r.json())
+    .then(logs => {
+      logs.forEach(l => { appendToTerminal(l); appendToFeed(l); });
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

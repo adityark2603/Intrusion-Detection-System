@@ -1,0 +1,8 @@
+{
+  "features": [
+    "duration",
+    "orig_pkts",
+    "resp_pkts",
+    "proto"
+  ]
+}

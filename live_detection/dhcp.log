@@ -1,0 +1,11 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	dhcp
+#open	2026-06-15-12-34-26
+#fields	ts	uids	client_addr	server_addr	mac	host_name	client_fqdn	domain	requested_addr	assigned_addr	lease_time	client_message	server_message	msg_types	duration
+#types	time	set[string]	addr	addr	string	string	string	string	addr	addr	interval	string	string	vector[string]	interval
+1781507050.890047	C3HER83hkYsm2MgA2a	192.168.244.1	192.168.244.254	00:50:56:c0:00:08	Aarna	Aarna	-	-	192.168.244.1	1800.000000	-	-	REQUEST,ACK	0.000033
+1781507100.568074	CaZ8ax2dyQYmZtTjgj	192.168.244.128	192.168.244.254	00:0c:29:d1:a8:ba	PES2UG23CS009	-	localdomain	-	192.168.244.128	1800.000000	-	-	REQUEST,ACK	0.000999
+1781507111.742736	CaZ8ax2dyQYmZtTjgj	192.168.244.128	192.168.244.254	00:0c:29:d1:a8:ba	PES2UG23CS009	-	localdomain	-	192.168.244.128	1800.000000	-	-	REQUEST,ACK	0.000445
